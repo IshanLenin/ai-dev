@@ -1,7 +1,7 @@
-transformers==4.40.1
-accelerate==0.29.3
-peft==0.10.0
-trl==0.8.6
+transformers
+accelerate
+peft
+trl
 datasets
 python-dotenv
 torch
