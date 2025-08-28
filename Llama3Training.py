@@ -34,12 +34,9 @@ def main():
 
     # --- 3. Load Model in 16-bit Precision ---
     print("Loading base model and tokenizer in 16-bit precision...")
-    
-    # We now load the model in bfloat16, which is very efficient on modern GPUs.
-    # This completely avoids the need for the bitsandbytes library.
     model = AutoModelForCausalLM.from_pretrained(
         model_id,
-        torch_dtype=torch.bfloat16, # Use 16-bit precision
+        torch_dtype=torch.bfloat16,  # Use 16-bit precision
         device_map="auto",
         token=HF_TOKEN
     )
@@ -49,11 +46,21 @@ def main():
         tokenizer.pad_token = tokenizer.eos_token
     print("Base model loaded successfully.")
 
-    # --- 4. Load Custom Dataset ---
+    # --- 4. Load & Tokenize Dataset ---
     try:
         print(f"Loading custom dataset from {dataset_path}...")
-        dataset = load_dataset("json", data_files=dataset_path, split="train")
-        print("Custom dataset loaded successfully.")
+        raw_dataset = load_dataset("json", data_files=dataset_path, split="train")
+
+        def tokenize(batch):
+            return tokenizer(
+                batch["text"],
+                truncation=True,
+                max_length=512,
+                padding="max_length"
+            )
+
+        dataset = raw_dataset.map(tokenize, batched=True)
+        print("Custom dataset loaded & tokenized successfully.")
     except FileNotFoundError:
         print(f"FATAL: '{dataset_path}' not found.")
         return
@@ -78,7 +85,7 @@ def main():
         num_train_epochs=3,
         per_device_train_batch_size=4,
         gradient_accumulation_steps=2,
-        optim="adamw_torch", # Standard optimizer that does not require bitsandbytes
+        optim="adamw_torch",  # Standard optimizer
         learning_rate=2e-4,
         fp16=True,
         logging_steps=10,
@@ -88,8 +95,6 @@ def main():
         model=model,
         train_dataset=dataset,
         peft_config=lora_config,
-        dataset_text_field="text",
-        max_seq_length=512,
         tokenizer=tokenizer,
         args=training_args,
     )
