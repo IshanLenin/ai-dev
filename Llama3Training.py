@@ -4,10 +4,9 @@ from datasets import load_dataset
 from transformers import (
     AutoModelForCausalLM,
     AutoTokenizer,
-    BitsAndBytesConfig,
     TrainingArguments,
 )
-from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
+from peft import LoraConfig, get_peft_model
 from trl import SFTTrainer
 from dotenv import load_dotenv
 from huggingface_hub import login
@@ -25,7 +24,7 @@ def main():
     new_model_name = "llama-3-8b-presidency-gpt"
 
     if not HF_TOKEN:
-        print("FATAL: HF_TOKEN not found in .env file. Please create a .env file with your Hugging Face token.")
+        print("FATAL: HF_TOKEN not found. Please check your .env file.")
         return
 
     # --- 2. Log in to Hugging Face ---
@@ -33,39 +32,34 @@ def main():
     login(token=HF_TOKEN)
     print("Successfully logged in.")
 
-    # --- 3. Configure and Load Model (QLoRA) ---
-    print("Configuring and loading the base model...")
-    bnb_config = BitsAndBytesConfig(
-        load_in_4bit=True,
-        bnb_4bit_quant_type="nf4",
-        bnb_4bit_compute_dtype=torch.bfloat16
-    )
-
-    tokenizer = AutoTokenizer.from_pretrained(model_id, token=HF_TOKEN)
+    # --- 3. Load Model in 16-bit Precision ---
+    print("Loading base model and tokenizer in 16-bit precision...")
+    
+    # We now load the model in bfloat16, which is very efficient on modern GPUs.
+    # This completely avoids the need for the bitsandbytes library.
     model = AutoModelForCausalLM.from_pretrained(
         model_id,
-        quantization_config=bnb_config,
+        torch_dtype=torch.bfloat16, # Use 16-bit precision
         device_map="auto",
         token=HF_TOKEN
     )
+    tokenizer = AutoTokenizer.from_pretrained(model_id, token=HF_TOKEN)
 
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
-    print("Base model and tokenizer loaded successfully.")
+    print("Base model loaded successfully.")
 
     # --- 4. Load Custom Dataset ---
     try:
         print(f"Loading custom dataset from {dataset_path}...")
         dataset = load_dataset("json", data_files=dataset_path, split="train")
         print("Custom dataset loaded successfully.")
-        print(f"First example: {dataset[0]}")
     except FileNotFoundError:
-        print(f"FATAL: '{dataset_path}' not found. Please ensure your dataset is in the same directory.")
+        print(f"FATAL: '{dataset_path}' not found.")
         return
 
     # --- 5. Configure PEFT with LoRA ---
     print("Configuring LoRA adapters for training...")
-    model = prepare_model_for_kbit_training(model)
     lora_config = LoraConfig(
         r=16,
         lora_alpha=32,
@@ -88,10 +82,6 @@ def main():
         learning_rate=2e-4,
         fp16=True,
         logging_steps=10,
-        max_grad_norm=0.3,
-        max_steps=-1,
-        warmup_ratio=0.03,
-        lr_scheduler_type="constant",
     )
 
     trainer = SFTTrainer(
@@ -104,7 +94,7 @@ def main():
         args=training_args,
     )
 
-    print("\nStarting the fine-tuning process... This will take some time.")
+    print("\nStarting the fine-tuning process...")
     trainer.train()
     print("Fine-tuning complete!")
 
