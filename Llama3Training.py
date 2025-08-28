@@ -95,7 +95,6 @@ def main():
         model=model,
         train_dataset=dataset,
         peft_config=lora_config,
-        tokenizer=tokenizer,
         args=training_args,
     )
 
