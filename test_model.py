@@ -50,24 +50,24 @@ def main():
             break
 
         # --- Encode input ---
-    input_ids = tokenizer(user_question, return_tensors="pt").input_ids.to(model.device)
+        input_ids = tokenizer(user_question, return_tensors="pt").input_ids.to(model.device)
 
 # --- Generate response using the underlying model ---
-    with torch.no_grad():
-        output_ids = model.base_model.generate(
-            input_ids,
-            max_new_tokens=256,
-            do_sample=True,
-            temperature=0.1,
-            top_p=0.9,
-            eos_token_id=tokenizer.eos_token_id
+        with torch.no_grad():
+            output_ids = model.base_model.generate(
+                input_ids,
+                max_new_tokens=256,
+                do_sample=True,
+                temperature=0.1,
+                top_p=0.9,
+                eos_token_id=tokenizer.eos_token_id
             )
 
         # Skip input tokens in output
-    response_ids = output_ids[0][input_ids.shape[-1]:]
-    response = tokenizer.decode(response_ids, skip_special_tokens=True)
-    print("\nPresidencyGPT:")
-    print(response)
+            response_ids = output_ids[0][input_ids.shape[-1]:]
+            response = tokenizer.decode(response_ids, skip_special_tokens=True)
+            print("\nPresidencyGPT:")
+            print(response)
 
 if __name__ == "__main__":
     main()
