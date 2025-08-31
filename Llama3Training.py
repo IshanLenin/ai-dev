@@ -4,16 +4,17 @@ from datasets import load_dataset
 from transformers import (
     AutoModelForCausalLM,
     AutoTokenizer,
+    BitsAndBytesConfig,
     TrainingArguments,
 )
-from peft import LoraConfig, get_peft_model
+from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
 from trl import SFTTrainer
 from dotenv import load_dotenv
 from huggingface_hub import login
 
 def main():
     """
-    Main function to run the Llama 3 fine-tuning pipeline.
+    Main function to run the Llama 3 fine-tuning pipeline with 4-bit quantization.
     """
     # --- 1. Load Configuration and Secrets ---
     print("Loading configuration...")
@@ -32,41 +33,40 @@ def main():
     login(token=HF_TOKEN)
     print("Successfully logged in.")
 
-    # --- 3. Load Model in 16-bit Precision ---
-    print("Loading base model and tokenizer in 16-bit precision...")
+    # --- 3. Configure and Load Model (QLoRA / 4-bit) ---
+    print("Configuring and loading the base model with 4-bit quantization...")
+    
+    # This configuration enables the memory-saving QLoRA technique
+    bnb_config = BitsAndBytesConfig(
+        load_in_4bit=True,
+        bnb_4bit_quant_type="nf4",
+        bnb_4bit_compute_dtype=torch.bfloat16
+    )
+
+    tokenizer = AutoTokenizer.from_pretrained(model_id, token=HF_TOKEN)
     model = AutoModelForCausalLM.from_pretrained(
         model_id,
-        torch_dtype=torch.bfloat16,  # Use 16-bit precision
+        quantization_config=bnb_config,
         device_map="auto",
         token=HF_TOKEN
     )
-    tokenizer = AutoTokenizer.from_pretrained(model_id, token=HF_TOKEN)
 
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
     print("Base model loaded successfully.")
 
-    # --- 4. Load & Tokenize Dataset ---
+    # --- 4. Load Custom Dataset ---
     try:
         print(f"Loading custom dataset from {dataset_path}...")
-        raw_dataset = load_dataset("json", data_files=dataset_path, split="train")
-
-        def tokenize(batch):
-            return tokenizer(
-                batch["text"],
-                truncation=True,
-                max_length=512,
-                padding="max_length"
-            )
-
-        dataset = raw_dataset.map(tokenize, batched=True)
-        print("Custom dataset loaded & tokenized successfully.")
+        dataset = load_dataset("json", data_files=dataset_path, split="train")
+        print("Custom dataset loaded successfully.")
     except FileNotFoundError:
         print(f"FATAL: '{dataset_path}' not found.")
         return
 
     # --- 5. Configure PEFT with LoRA ---
     print("Configuring LoRA adapters for training...")
+    model = prepare_model_for_kbit_training(model)
     lora_config = LoraConfig(
         r=16,
         lora_alpha=32,
@@ -85,7 +85,7 @@ def main():
         num_train_epochs=3,
         per_device_train_batch_size=4,
         gradient_accumulation_steps=2,
-        optim="adamw_torch",  # Standard optimizer
+        optim="paged_adamw_8bit", # The memory-efficient optimizer
         learning_rate=2e-4,
         fp16=True,
         logging_steps=10,
@@ -95,6 +95,9 @@ def main():
         model=model,
         train_dataset=dataset,
         peft_config=lora_config,
+        dataset_text_field="text",
+        max_seq_length=512,
+        tokenizer=tokenizer,
         args=training_args,
     )
 
