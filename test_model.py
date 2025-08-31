@@ -94,11 +94,6 @@ def main():
             pad_token_id=tokenizer.eos_token_id
             )
 
-response_ids = outputs[0][input_ids.shape[-1]:]
-response = tokenizer.decode(response_ids, skip_special_tokens=True)
-print("\nPresidencyGPT:")
-print(response)
-
         
         response = outputs[0][input_ids.shape[-1]:]
         print("\nPresidencyGPT:")
