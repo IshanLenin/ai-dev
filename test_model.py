@@ -13,8 +13,10 @@ def main():
     print("Loading configuration...")
     load_dotenv()
     HF_TOKEN = os.getenv('HF_TOKEN')
-    base_model_id = "meta-llama/Meta-Llama-3-8B"
-    adapter_path = "./llama-3-8b-presidency-gpt" # Path to your downloaded adapter
+    # --- UPDATED MODEL ID ---
+    base_model_id = "meta-llama/Meta-Llama-3-8B-Instruct"
+    # --- UPDATED ADAPTER PATH ---
+    adapter_path = "./llama-3-8b-instruct-presidency-gpt" 
 
     if not HF_TOKEN:
         print("FATAL: HF_TOKEN not found. Please check your .env file.")
@@ -26,9 +28,8 @@ def main():
     print("Successfully logged in.")
 
     # --- 3. Load the Base Model (using 4-bit for local efficiency) ---
-    print("Loading the base Llama 3 model with 4-bit quantization...")
+    print("Loading the base instruction-tuned model with 4-bit quantization...")
     
-    # Use 4-bit quantization to make it runnable on a local GPU
     bnb_config = BitsAndBytesConfig(
         load_in_4bit=True,
         bnb_4bit_quant_type="nf4",
@@ -49,8 +50,13 @@ def main():
 
     # --- 4. Load and Apply the Fine-Tuned Adapter ---
     print(f"Loading fine-tuned adapter from {adapter_path}...")
-    model = PeftModel.from_pretrained(model, adapter_path)
-    print("Adapter loaded and applied successfully. Your PresidencyGPT is ready!")
+    try:
+        model = PeftModel.from_pretrained(model, adapter_path)
+        print("Adapter loaded and applied successfully. Your PresidencyGPT is ready!")
+    except Exception as e:
+        print(f"FATAL: Could not load the adapter from {adapter_path}. Did the training complete successfully?")
+        print(f"Error: {e}")
+        return
 
     # --- 5. Have a Conversation! ---
     print("\n--- Starting conversation with PresidencyGPT ---")
@@ -61,7 +67,6 @@ def main():
         if user_question.lower() == 'quit':
             break
 
-        # Format the prompt in the Llama 3 chat format
         messages = [
             {"role": "user", "content": user_question},
         ]
@@ -79,11 +84,11 @@ def main():
 
         # Generate the response
         outputs = model.generate(
-            input_ids,
+            input_ids=input_ids,
             max_new_tokens=256,
             eos_token_id=terminators,
             do_sample=True,
-            temperature=0.1, # Lower temperature for more factual answers
+            temperature=0.1,
             top_p=0.9,
         )
         
@@ -93,3 +98,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

@@ -4,25 +4,26 @@ from datasets import load_dataset
 from transformers import (
     AutoModelForCausalLM,
     AutoTokenizer,
-    BitsAndBytesConfig,
     TrainingArguments,
+    BitsAndBytesConfig,
 )
-from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
+from peft import LoraConfig, get_peft_model
 from trl import SFTTrainer
 from dotenv import load_dotenv
 from huggingface_hub import login
 
 def main():
     """
-    Main function to run the Llama 3 fine-tuning pipeline with 4-bit quantization.
+    Main function to run the Llama 3 fine-tuning pipeline.
     """
     # --- 1. Load Configuration and Secrets ---
     print("Loading configuration...")
     load_dotenv()
     HF_TOKEN = os.getenv('HF_TOKEN')
-    model_id = "meta-llama/Meta-Llama-3-8B"
+    # --- UPDATED MODEL ID ---
+    model_id = "meta-llama/Meta-Llama-3-8B-Instruct"
     dataset_path = "dataset.jsonl"
-    new_model_name = "llama-3-8b-presidency-gpt"
+    new_model_name = "llama-3-8b-instruct-presidency-gpt"
 
     if not HF_TOKEN:
         print("FATAL: HF_TOKEN not found. Please check your .env file.")
@@ -33,23 +34,21 @@ def main():
     login(token=HF_TOKEN)
     print("Successfully logged in.")
 
-    # --- 3. Configure and Load Model (QLoRA / 4-bit) ---
-    print("Configuring and loading the base model with 4-bit quantization...")
-    
-    # This configuration enables the memory-saving QLoRA technique
+    # --- 3. Load the Base Model (using 4-bit quantization) ---
+    print("Loading base instruction-tuned model with 4-bit quantization...")
     bnb_config = BitsAndBytesConfig(
         load_in_4bit=True,
         bnb_4bit_quant_type="nf4",
         bnb_4bit_compute_dtype=torch.bfloat16
     )
 
-    tokenizer = AutoTokenizer.from_pretrained(model_id, token=HF_TOKEN)
     model = AutoModelForCausalLM.from_pretrained(
         model_id,
         quantization_config=bnb_config,
         device_map="auto",
         token=HF_TOKEN
     )
+    tokenizer = AutoTokenizer.from_pretrained(model_id, token=HF_TOKEN)
 
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
@@ -66,7 +65,6 @@ def main():
 
     # --- 5. Configure PEFT with LoRA ---
     print("Configuring LoRA adapters for training...")
-    model = prepare_model_for_kbit_training(model)
     lora_config = LoraConfig(
         r=16,
         lora_alpha=32,
@@ -83,9 +81,9 @@ def main():
     training_args = TrainingArguments(
         output_dir="./results",
         num_train_epochs=3,
-        per_device_train_batch_size=4,
-        gradient_accumulation_steps=2,
-        optim="paged_adamw_8bit", # The memory-efficient optimizer
+        per_device_train_batch_size=2, # Reduced for stability
+        gradient_accumulation_steps=4, # Increased to compensate
+        optim="paged_adamw_8bit",
         learning_rate=2e-4,
         fp16=True,
         logging_steps=10,
@@ -112,3 +110,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
