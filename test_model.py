@@ -70,28 +70,35 @@ def main():
         messages = [
             {"role": "user", "content": user_question},
         ]
-        
-        # apply_chat_template is the correct way for instruct models
-        input_ids = tokenizer.apply_chat_template(
-            messages,
-            add_generation_prompt=True,
-            return_tensors="pt"
-        ).to(model.device)
-        
-        terminators = [
-            tokenizer.eos_token_id,
-            tokenizer.convert_tokens_to_ids("<|eot_id|>")
-        ]
 
-        # Generate the response
+        # apply_chat_template is the correct way for instruct models
+
+        # Encode input
+        encoded = tokenizer(
+    user_question,
+    return_tensors="pt",
+    padding=True,
+)
+        input_ids = encoded.input_ids.to(model.device)
+        attention_mask = encoded.attention_mask.to(model.device)
+
+# Generate response
         outputs = model.generate(
             input_ids=input_ids,
+            attention_mask=attention_mask,
             max_new_tokens=256,
-            eos_token_id=terminators,
             do_sample=True,
-            temperature=0.1, # Lower temperature for more factual answers
+            temperature=0.1,
             top_p=0.9,
-        )
+            eos_token_id=tokenizer.eos_token_id,
+            pad_token_id=tokenizer.eos_token_id
+            )
+
+response_ids = outputs[0][input_ids.shape[-1]:]
+response = tokenizer.decode(response_ids, skip_special_tokens=True)
+print("\nPresidencyGPT:")
+print(response)
+
         
         response = outputs[0][input_ids.shape[-1]:]
         print("\nPresidencyGPT:")
