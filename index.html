@@ -14,6 +14,7 @@
             align-items: center;
             height: 100vh;
         }
+
         #chat-container {
             width: 90%;
             max-width: 800px;
@@ -24,6 +25,7 @@
             display: flex;
             flex-direction: column;
         }
+
         #header {
             padding: 20px;
             background-color: #007bff;
@@ -32,7 +34,9 @@
             border-top-left-radius: 12px;
             border-top-right-radius: 12px;
         }
+
         h1 { margin: 0; font-size: 1.5em; }
+
         #messages {
             flex-grow: 1;
             padding: 20px;
@@ -40,6 +44,7 @@
             display: flex;
             flex-direction: column;
         }
+
         .message {
             max-width: 80%;
             padding: 12px 18px;
@@ -47,23 +52,33 @@
             margin-bottom: 10px;
             line-height: 1.4;
         }
+
         .user-message {
             background-color: #007bff;
             color: white;
             align-self: flex-end;
             border-bottom-right-radius: 5px;
         }
+
         .bot-message {
             background-color: #e9e9eb;
             color: #333;
             align-self: flex-start;
             border-bottom-left-radius: 5px;
         }
+
+        .typing-indicator {
+            align-self: flex-start;
+            color: #999;
+            font-style: italic;
+        }
+
         #input-area {
             display: flex;
             padding: 20px;
             border-top: 1px solid #ddd;
         }
+
         #message-input {
             flex-grow: 1;
             border: 1px solid #ccc;
@@ -72,6 +87,7 @@
             font-size: 1em;
             margin-right: 10px;
         }
+
         #send-button {
             border: none;
             background-color: #007bff;
@@ -81,10 +97,10 @@
             cursor: pointer;
             font-size: 1em;
         }
-        .typing-indicator {
-            align-self: flex-start;
-            color: #999;
-            font-style: italic;
+
+        #send-button:disabled {
+            background-color: #aaa;
+            cursor: not-allowed;
         }
     </style>
 </head>
@@ -99,7 +115,7 @@
         </div>
         <div id="input-area">
             <input type="text" id="message-input" placeholder="Ask a question about your notes...">
-            <button id="send-button">Send</button>
+            <button id="send-button" disabled>Send</button>
         </div>
     </div>
 
@@ -108,64 +124,55 @@
         const sendButton = document.getElementById('send-button');
         const messagesContainer = document.getElementById('messages');
 
-        // Establish WebSocket connection
-        const ws = new WebSocket(`wss://${window.location.host}/ws/chat`);
+        // Enable/disable send button based on input
+        messageInput.addEventListener('input', () => {
+            sendButton.disabled = !messageInput.value.trim();
+        });
 
-        ws.onopen = function(event) {
-            console.log("WebSocket connection established.");
-        };
+        // WebSocket connection
+        const wsProtocol = window.location.protocol === "https:" ? "wss" : "ws";
+        const ws = new WebSocket(`${wsProtocol}://${window.location.host}/ws/chat`);
 
-        ws.onmessage = function(event) {
-            // Remove typing indicator
-            const typingIndicator = document.querySelector('.typing-indicator');
-            if (typingIndicator) {
-                typingIndicator.remove();
-            }
+        ws.onopen = () => console.log("WebSocket connection established.");
+        ws.onclose = () => addMessage("Connection lost. Please refresh the page.", 'bot-message');
+        ws.onerror = () => addMessage("An error occurred. Please refresh the page.", 'bot-message');
 
-            // Display bot's message
+        ws.onmessage = (event) => {
+            removeTypingIndicator();
             addMessage(event.data, 'bot-message');
         };
 
-        ws.onclose = function(event) {
-            console.log("WebSocket connection closed.");
-            addMessage("Connection lost. Please refresh the page.", 'bot-message');
-        };
-
-        ws.onerror = function(event) {
-            console.error("WebSocket error:", event);
-            addMessage("An error occurred. Please refresh the page.", 'bot-message');
-        };
-        
         function addMessage(text, className) {
             const messageElement = document.createElement('div');
             messageElement.classList.add('message', className);
             messageElement.textContent = text;
             messagesContainer.appendChild(messageElement);
-            messagesContainer.scrollTop = messagesContainer.scrollHeight; // Scroll to bottom
+            messagesContainer.scrollTo({ top: messagesContainer.scrollHeight, behavior: 'smooth' });
         }
-        
+
+        function removeTypingIndicator() {
+            const typingIndicator = document.querySelector('.typing-indicator');
+            if (typingIndicator) typingIndicator.remove();
+        }
+
         function sendMessage() {
             const messageText = messageInput.value.trim();
-            if (messageText) {
-                // Display user's message immediately
-                addMessage(messageText, 'user-message');
-                
-                // Send message to the server
-                ws.send(messageText);
-                
-                // Clear input and show typing indicator
-                messageInput.value = '';
-                addMessage('PresidencyGPT is thinking...', 'typing-indicator');
-            }
+            if (!messageText) return;
+
+            addMessage(messageText, 'user-message');
+            ws.send(messageText);
+
+            messageInput.value = '';
+            sendButton.disabled = true;
+
+            removeTypingIndicator();
+            addMessage('PresidencyGPT is thinking...', 'typing-indicator');
         }
 
         sendButton.addEventListener('click', sendMessage);
-        messageInput.addEventListener('keypress', function(event) {
-            if (event.key === 'Enter') {
-                sendMessage();
-            }
+        messageInput.addEventListener('keypress', (event) => {
+            if (event.key === 'Enter') sendMessage();
         });
-
     </script>
 </body>
 </html>
