@@ -64,10 +64,10 @@ def main():
             )
 
         # Skip input tokens in output
-            response_ids = output_ids[0][input_ids.shape[-1]:]
-            response = tokenizer.decode(response_ids, skip_special_tokens=True)
-            print("\nPresidencyGPT:")
-            print(response)
+        response_ids = output_ids[0][input_ids.shape[-1]:]
+        response = tokenizer.decode(response_ids, skip_special_tokens=True)
+        print("\nPresidencyGPT:")
+        print(response)
 
 if __name__ == "__main__":
     main()
