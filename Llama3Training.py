@@ -112,11 +112,10 @@ def main():
             save_total_limit=2,
         )
 
-        # Use SFTTrainer without data_collator (recommended for newer versions)
+        # Use SFTTrainer (compatible with different versions)
         trainer = SFTTrainer(
             model=model,
             train_dataset=dataset,
-            tokenizer=tokenizer,
             formatting_func=formatting_func,
             args=training_args,
             max_seq_length=2048,  # Set appropriate max length
