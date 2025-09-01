@@ -98,18 +98,23 @@ def main():
             return example["text"]
 
         # --- 7. Set Up and Run Training ---
-        print("Setting up training arguments...")
+        print("Setting up training arguments optimized for RTX 3090...")
         training_args = TrainingArguments(
             output_dir="./results",
             num_train_epochs=3,
-            per_device_train_batch_size=2,  # Reduced for stability
-            gradient_accumulation_steps=4,  # Increased to compensate
+            per_device_train_batch_size=4,  # Increased for RTX 3090's 24GB VRAM
+            gradient_accumulation_steps=2,  # Reduced since we can use larger batch size
             optim="paged_adamw_8bit",
             learning_rate=2e-4,
-            fp16=True,
+            bf16=True,  # RTX 3090 supports bf16 well
             logging_steps=10,
             save_steps=500,
             save_total_limit=2,
+            remove_unused_columns=False,
+            gradient_checkpointing=True,
+            dataloader_pin_memory=False,
+            warmup_steps=100,  # Add warmup for better training stability
+            weight_decay=0.01,  # Add some regularization
         )
 
         # Use SFTTrainer with minimal compatible parameters
