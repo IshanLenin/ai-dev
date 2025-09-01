@@ -112,15 +112,14 @@ def main():
             save_total_limit=2,
         )
 
-        # Use SFTTrainer (compatible with different versions)
+        # Use SFTTrainer with minimal compatible parameters
+        print("Initializing SFTTrainer...")
         trainer = SFTTrainer(
             model=model,
             train_dataset=dataset,
-            formatting_func=formatting_func,
             args=training_args,
-            max_seq_length=2048,  # Set appropriate max length
-            packing=False,  # Set to True if you want to pack sequences
         )
+        print("SFTTrainer initialized successfully.")
 
         print("\nStarting the fine-tuning process...")
         trainer.train()
