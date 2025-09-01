@@ -8,7 +8,7 @@ from transformers import (
     TrainingArguments,
 )
 from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
-from trl import SFTTrainer
+from trl import SFTTrainer, DataCollatorForCompletionOnlyLM
 from dotenv import load_dotenv
 from huggingface_hub import login
 
@@ -20,10 +20,8 @@ def main():
     print("Loading configuration...")
     load_dotenv()
     HF_TOKEN = os.getenv('HF_TOKEN')
-    # --- UPDATED MODEL ID ---
     model_id = "meta-llama/Meta-Llama-3-8B-Instruct"
     dataset_path = "dataset.jsonl"
-    # --- UPDATED MODEL NAME ---
     new_model_name = "llama-3-8b-instruct-presidency-gpt"
 
     if not HF_TOKEN:
@@ -79,26 +77,36 @@ def main():
     model = get_peft_model(model, lora_config)
     print("LoRA adapters configured.")
 
-    # --- 6. Set Up and Run Training ---
+    # --- 6. Define formatting function ---
+    def formatting_func(example):
+        # Assumes dataset.jsonl has a "text" field
+        return example["text"]
+
+    # --- 7. Set Up and Run Training ---
     print("Setting up training arguments...")
     training_args = TrainingArguments(
         output_dir="./results",
         num_train_epochs=3,
-        per_device_train_batch_size=2, # Reduced for stability
-        gradient_accumulation_steps=4, # Increased to compensate
+        per_device_train_batch_size=2,  # Reduced for stability
+        gradient_accumulation_steps=4,  # Increased to compensate
         optim="paged_adamw_8bit",
         learning_rate=2e-4,
         fp16=True,
         logging_steps=10,
     )
 
+    data_collator = DataCollatorForCompletionOnlyLM(
+        tokenizer=tokenizer,
+        response_template="",   # you may set something like "### Response:" if dataset is structured that way
+        return_tensors="pt"
+    )
+
     trainer = SFTTrainer(
         model=model,
         train_dataset=dataset,
-        peft_config=lora_config,
-        dataset_text_field="text",
-        max_seq_length=512,
         tokenizer=tokenizer,
+        data_collator=data_collator,
+        formatting_func=formatting_func,
         args=training_args,
     )
 
@@ -106,11 +114,10 @@ def main():
     trainer.train()
     print("Fine-tuning complete!")
 
-    # --- 7. Save the Fine-Tuned Model Adapter ---
+    # --- 8. Save the Fine-Tuned Model Adapter ---
     print(f"Saving model adapter to '{new_model_name}'...")
     trainer.save_model(new_model_name)
     print("Model adapter saved successfully.")
 
 if __name__ == "__main__":
     main()
-
