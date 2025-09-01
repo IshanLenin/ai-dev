@@ -146,7 +146,7 @@ def main():
         # --- 8. Save the Fine-Tuned Model Adapter ---
         print(f"Saving model adapter to '{new_model_name}'...")
         trainer.save_model(new_model_name)
-        print("Model adapter saved successfully.")")
+        print("Model adapter saved successfully.")
 
 if __name__ == "__main__":
     main()
