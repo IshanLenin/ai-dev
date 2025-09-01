@@ -8,7 +8,7 @@ from transformers import (
     TrainingArguments,
 )
 from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
-from trl import SFTTrainer, DataCollatorForCompletionOnlyLM
+from trl import SFTTrainer
 from dotenv import load_dotenv
 from huggingface_hub import login
 
@@ -93,22 +93,36 @@ def main():
         learning_rate=2e-4,
         fp16=True,
         logging_steps=10,
+        save_steps=500,
+        save_total_limit=2,
     )
 
-    data_collator = DataCollatorForCompletionOnlyLM(
-        tokenizer=tokenizer,
-        response_template="",   # you may set something like "### Response:" if dataset is structured that way
-        return_tensors="pt"
-    )
-
+    # Option 1: Use SFTTrainer without data_collator (recommended)
     trainer = SFTTrainer(
         model=model,
         train_dataset=dataset,
         tokenizer=tokenizer,
-        data_collator=data_collator,
         formatting_func=formatting_func,
         args=training_args,
+        max_seq_length=2048,  # Set appropriate max length
+        packing=False,  # Set to True if you want to pack sequences
     )
+
+    # Option 2: If you need completion-only training, use this instead:
+    # from transformers import DataCollatorForLanguageModeling
+    # data_collator = DataCollatorForLanguageModeling(
+    #     tokenizer=tokenizer,
+    #     mlm=False,  # We're doing causal LM, not masked LM
+    # )
+    # trainer = SFTTrainer(
+    #     model=model,
+    #     train_dataset=dataset,
+    #     tokenizer=tokenizer,
+    #     data_collator=data_collator,
+    #     formatting_func=formatting_func,
+    #     args=training_args,
+    #     max_seq_length=2048,
+    # )
 
     print("\nStarting the fine-tuning process...")
     trainer.train()
@@ -117,7 +131,4 @@ def main():
     # --- 8. Save the Fine-Tuned Model Adapter ---
     print(f"Saving model adapter to '{new_model_name}'...")
     trainer.save_model(new_model_name)
-    print("Model adapter saved successfully.")
-
-if __name__ == "__main__":
-    main()
+    print("Model adapter saved successfully
