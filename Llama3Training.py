@@ -112,7 +112,7 @@ def main():
             save_total_limit=2,
         )
 
-        # Option 1: Use SFTTrainer without data_collator (recommended)
+        # Use SFTTrainer without data_collator (recommended for newer versions)
         trainer = SFTTrainer(
             model=model,
             train_dataset=dataset,
@@ -123,22 +123,6 @@ def main():
             packing=False,  # Set to True if you want to pack sequences
         )
 
-        # Option 2: If you need completion-only training, use this instead:
-        # from transformers import DataCollatorForLanguageModeling
-        # data_collator = DataCollatorForLanguageModeling(
-        #     tokenizer=tokenizer,
-        #     mlm=False,  # We're doing causal LM, not masked LM
-        # )
-        # trainer = SFTTrainer(
-        #     model=model,
-        #     train_dataset=dataset,
-        #     tokenizer=tokenizer,
-        #     data_collator=data_collator,
-        #     formatting_func=formatting_func,
-        #     args=training_args,
-        #     max_seq_length=2048,
-        # )
-
         print("\nStarting the fine-tuning process...")
         trainer.train()
         print("Fine-tuning complete!")
@@ -148,5 +132,12 @@ def main():
         trainer.save_model(new_model_name)
         print("Model adapter saved successfully.")
 
+    except Exception as e:
+        print(f"FATAL ERROR: {e}")
+        import traceback
+        traceback.print_exc()
+
 if __name__ == "__main__":
+    print("Starting Llama 3 fine-tuning script...")
     main()
+    print("Script execution completed.")
