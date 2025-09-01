@@ -16,17 +16,26 @@ def main():
     """
     Main function to run the Llama 3 fine-tuning pipeline.
     """
-    # --- 1. Load Configuration and Secrets ---
-    print("Loading configuration...")
-    load_dotenv()
-    HF_TOKEN = os.getenv('HF_TOKEN')
-    model_id = "meta-llama/Meta-Llama-3-8B-Instruct"
-    dataset_path = "dataset.jsonl"
-    new_model_name = "llama-3-8b-instruct-presidency-gpt"
+    try:
+        # --- 1. Load Configuration and Secrets ---
+        print("Loading configuration...")
+        load_dotenv()
+        HF_TOKEN = os.getenv('HF_TOKEN')
+        model_id = "meta-llama/Meta-Llama-3-8B-Instruct"
+        dataset_path = "dataset.jsonl"
+        new_model_name = "llama-3-8b-instruct-presidency-gpt"
 
-    if not HF_TOKEN:
-        print("FATAL: HF_TOKEN not found. Please check your .env file.")
-        return
+        print(f"HF_TOKEN found: {'Yes' if HF_TOKEN else 'No'}")
+        print(f"Dataset path: {dataset_path}")
+        print(f"Dataset exists: {os.path.exists(dataset_path)}")
+
+        if not HF_TOKEN:
+            print("FATAL: HF_TOKEN not found. Please check your .env file.")
+            return
+
+        if not os.path.exists(dataset_path):
+            print(f"FATAL: Dataset file '{dataset_path}' not found.")
+            return
 
     # --- 2. Log in to Hugging Face ---
     print("Logging in to Hugging Face...")
@@ -58,9 +67,15 @@ def main():
     try:
         print(f"Loading custom dataset from {dataset_path}...")
         dataset = load_dataset("json", data_files=dataset_path, split="train")
-        print("Custom dataset loaded successfully.")
+        print(f"Dataset loaded successfully. Size: {len(dataset)}")
+        print(f"Dataset columns: {dataset.column_names}")
+        if len(dataset) > 0:
+            print(f"First example keys: {list(dataset[0].keys())}")
     except FileNotFoundError:
         print(f"FATAL: '{dataset_path}' not found.")
+        return
+    except Exception as e:
+        print(f"FATAL: Error loading dataset: {e}")
         return
 
     # --- 5. Configure PEFT with LoRA ---
@@ -131,4 +146,7 @@ def main():
     # --- 8. Save the Fine-Tuned Model Adapter ---
     print(f"Saving model adapter to '{new_model_name}'...")
     trainer.save_model(new_model_name)
-    print("Model adapter saved successfully")
+    print("Model adapter saved successfully.")")
+
+if __name__ == "__main__":
+    main()
