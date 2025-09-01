@@ -13,9 +13,7 @@ def main():
     print("Loading configuration...")
     load_dotenv()
     HF_TOKEN = os.getenv('HF_TOKEN')
-    # --- ENSURE THIS MATCHES YOUR TRAINING SCRIPT ---
     base_model_id = "meta-llama/Meta-Llama-3-8B-Instruct"
-    # --- THIS MUST BE THE NAME YOU SAVED YOUR ADAPTER AS ---
     adapter_path = "./llama-3-8b-instruct-presidency-gpt" 
 
     if not HF_TOKEN:
@@ -67,38 +65,49 @@ def main():
         if user_question.lower() == 'quit':
             break
 
+        # For Llama 3 Instruct, use the proper chat template
         messages = [
-            {"role": "user", "content": user_question},
+            {"role": "user", "content": user_question}
         ]
-
-        # apply_chat_template is the correct way for instruct models
+        
+        # Apply chat template for instruction-following
+        prompt = tokenizer.apply_chat_template(
+            messages, 
+            tokenize=False, 
+            add_generation_prompt=True
+        )
 
         # Encode input
         encoded = tokenizer(
-    user_question,
-    return_tensors="pt",
-    padding=True,
-)
+            prompt,
+            return_tensors="pt",
+            padding=True,
+            truncation=True,
+            max_length=2048
+        )
         input_ids = encoded.input_ids.to(model.device)
         attention_mask = encoded.attention_mask.to(model.device)
 
-# Generate response
-        outputs = model.generate(
-            input_ids=input_ids,
-            attention_mask=attention_mask,
-            max_new_tokens=256,
-            do_sample=True,
-            temperature=0.1,
-            top_p=0.9,
-            eos_token_id=tokenizer.eos_token_id,
-            pad_token_id=tokenizer.eos_token_id
+        # Generate response
+        with torch.no_grad():
+            outputs = model.generate(
+                input_ids=input_ids,
+                attention_mask=attention_mask,
+                max_new_tokens=256,
+                do_sample=True,
+                temperature=0.7,
+                top_p=0.9,
+                eos_token_id=tokenizer.eos_token_id,
+                pad_token_id=tokenizer.eos_token_id,
+                repetition_penalty=1.1
             )
 
-        
+        # Decode only the new tokens (response)
         response = outputs[0][input_ids.shape[-1]:]
+        decoded_response = tokenizer.decode(response, skip_special_tokens=True)
+        
         print("\nPresidencyGPT:")
-        print(tokenizer.decode(response, skip_special_tokens=True))
+        print(decoded_response)
 
 if __name__ == "__main__":
     main()
-
